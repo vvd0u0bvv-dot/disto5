@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Universal Controller</title>
+    <title>Disto Single-Trigger Controller</title>
 </head>
 <body>
     <button type="button" id="connectBtn">1. デバイス接続</button>
-    <button type="button" id="measureBtn" disabled>2. 計測開始</button>
+    <button type="button" id="measureBtn" disabled>2. 計測トリガー送信</button>
     <p id="status">ステータス: 未接続</p>
     <textarea id="result" rows="8" style="width: 100%;" readonly></textarea>
 
@@ -24,6 +24,7 @@
 
         document.getElementById('connectBtn').addEventListener('click', async () => {
             try {
+                log('接続中...');
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ services: [SERVICE_UUID] }]
                 });
@@ -34,17 +35,13 @@
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 const characteristics = await service.getCharacteristics();
                 
-                log(`計 ${characteristics.length} 個の通信口を確認`);
-
                 for (const char of characteristics) {
-                    log(`検出: ${char.uuid.substring(4, 8)} (Write: ${char.properties.write || char.properties.writeWithoutResponse})`);
-                    
-                    // 「書き込み可能」な通信口を自動的にコマンド用に割り当てる
+                    // 書き込み可能な通信口を自動選択
                     if (char.properties.write || char.properties.writeWithoutResponse) {
                         bleCharCmd = char;
-                        log(`★ コマンド用として設定: ${char.uuid.substring(4, 8)}`);
+                        log(`★ コマンド通信口を確保: ${char.uuid.substring(4, 8)}`);
                     }
-                    // ついでに通知機能があれば全部有効化しておく
+                    // 接続維持用の通知購読
                     if (char.properties.notify || char.properties.indicate) {
                         try {
                             await char.startNotifications();
@@ -56,24 +53,22 @@
                 if (!bleCharCmd) throw new Error('書き込み可能な通信口が見つかりません');
                 document.getElementById('measureBtn').disabled = false;
                 document.getElementById('connectBtn').disabled = true;
+                log('準備完了');
             } catch (e) {
-                log('エラー: ' + e.message);
+                log('接続エラー: ' + e.message);
             }
         });
 
         document.getElementById('measureBtn').addEventListener('click', async () => {
             if (!bleCharCmd) return;
             try {
-                log('シーケンス開始...');
-                const send = async (cmd) => {
-                    await bleCharCmd.writeValueWithResponse(new TextEncoder().encode(cmd + "\r\n"));
-                    await new Promise(r => setTimeout(r, 500));
-                };
-
-                await send("raiseEvent 300");
-                await send("raiseEvent 10");
-                await send("raiseEvent 10");
-                log('送信完了');
+                log('raiseEvent 10 送信中...');
+                
+                // 応答を待つ形式でコマンドを1回のみ送信
+                const data = new TextEncoder().encode("raiseEvent 10\r\n");
+                await bleCharCmd.writeValueWithResponse(data);
+                
+                log('送信成功：計測要求完了');
             } catch (e) {
                 log('送信エラー: ' + e.message);
             }
