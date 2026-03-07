@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto D5 BLE Controller (Stability Patch)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        button { padding: 15px 30px; font-size: 18px; margin: 10px 0; }
+        #status { font-weight: bold; margin: 10px 0; }
+        #result { width: 100%; height: 100px; }
+    </style>
+</head>
+<body>
+    <h1>Disto D5 Controller</h1>
+    <button type="button" id="connectBtn">1. デバイス接続</button>
+    <button type="button" id="measureBtn" disabled>2. 計測開始</button>
+    
+    <div id="status">ステータス: 未接続</div>
+    <textarea id="result" placeholder="計測結果待ち..." readonly></textarea>
+
+    <script>
+        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+        const CHAR_UUID = '3ab10120-f831-4395-b29d-570977d5bf94';
+        
+        let bleChar = null;
+        let isProcessing = false; // 排他制御用フラグ
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            const status = document.getElementById('status');
+            try {
+                status.innerText = '検索中...';
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+
+                status.innerText = '接続中...';
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                bleChar = await service.getCharacteristic(CHAR_UUID);
+
+                await bleChar.startNotifications();
+                bleChar.addEventListener('characteristicvaluechanged', (event) => {
+                    const value = new TextDecoder().decode(event.target.value);
+                    document.getElementById('result').value += value + "\n";
+                });
+
+                status.innerText = '接続成功！計測可能です';
+                document.getElementById('measureBtn').disabled = false;
+                document.getElementById('connectBtn').disabled = true;
+            } catch (err) {
+                status.innerText = '接続エラー: ' + err.message;
+            }
+        });
+
+        document.getElementById('measureBtn').addEventListener('click', async () => {
+            if (!bleChar || isProcessing) return;
+            
+            isProcessing = true;
+            const status = document.getElementById('status');
+            const btn = document.getElementById('measureBtn');
+            btn.disabled = true;
+
+            try {
+                // PC版ログシーケンスの完全再現
+                // 1. 300の送信と応答待機
+                status.innerText = '300送信中...';
+                await bleChar.writeValueWithResponse(new TextEncoder().encode("raiseEvent 300\r\n"));
+                await new Promise(r => setTimeout(r, 600)); // 応答後のインターバル
+                
+                // 2. 10の送信と応答待機
+                status.innerText = '10送信中...';
+                await bleChar.writeValueWithResponse(new TextEncoder().encode("raiseEvent 10\r\n"));
+                
+                status.innerText = '計測リクエスト完了';
+            } catch (err) {
+                status.innerText = '通信エラー: ' + err.message;
+                console.error("コマンド送信失敗:", err);
+            } finally {
+                isProcessing = false;
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
