@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto Robust Controller</title>
+</head>
+<body>
+    <button type="button" id="connectBtn">1. デバイス接続</button>
+    <button type="button" id="measureBtn" disabled>2. 計測開始</button>
+    <p id="status">ステータス: 未接続</p>
+    <textarea id="result" rows="6" style="width: 100%;" readonly></textarea>
+
+    <script>
+        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+        const CHAR_UUID = '3ab10120-f831-4395-b29d-570977d5bf94';
+        let bleChar = null;
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                bleChar = await service.getCharacteristic(CHAR_UUID);
+                document.getElementById('status').innerText = '接続成功';
+                document.getElementById('measureBtn').disabled = false;
+                document.getElementById('connectBtn').disabled = true;
+            } catch (e) {
+                document.getElementById('status').innerText = '接続エラー: ' + e.message;
+            }
+        });
+
+        document.getElementById('measureBtn').addEventListener('click', async () => {
+            if (!bleChar) return;
+            const status = document.getElementById('status');
+            
+            try {
+                status.innerText = '計測シーケンス送信中...';
+                
+                // 【重要】Responseを待たない送信（Without Response）を使用
+                // iOS側が応答待ちでコネクションをロックするのを防ぐため
+                const send = async (cmdStr) => {
+                    const data = new TextEncoder().encode(cmdStr + "\r\n");
+                    await bleChar.writeValueWithoutResponse(data);
+                    // コマンド間の時間を少し長め（200ms）にとり、Distoの処理を待つ
+                    await new Promise(r => setTimeout(r, 200));
+                };
+
+                await send("raiseEvent 300");
+                await send("raiseEvent 10");
+                await send("raiseEvent 10");
+                
+                status.innerText = 'シーケンス完了：切断されなければ計測されます';
+            } catch (e) {
+                status.innerText = 'エラー: ' + e.message;
+            }
+        });
+    </script>
+</body>
+</html>
