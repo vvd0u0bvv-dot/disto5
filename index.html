@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Reliable Controller</title>
+    <title>Disto Stable Measurement</title>
 </head>
 <body>
     <button type="button" id="connectBtn">1. デバイス接続</button>
@@ -24,6 +24,14 @@
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 bleChar = await service.getCharacteristic(CHAR_UUID);
+                
+                // 【重要】計測値を受け取るための通知リスナーを独立して設定
+                await bleChar.startNotifications();
+                bleChar.addEventListener('characteristicvaluechanged', (event) => {
+                    const value = new TextDecoder().decode(event.target.value);
+                    document.getElementById('result').value += value + "\n";
+                });
+
                 document.getElementById('status').innerText = '接続成功';
                 document.getElementById('measureBtn').disabled = false;
                 document.getElementById('connectBtn').disabled = true;
@@ -37,24 +45,22 @@
             const status = document.getElementById('status');
             
             try {
-                status.innerText = 'シーケンス実行中...';
+                status.innerText = '計測リクエスト送信中...';
 
-                // PCアプリのログ通り、Responseを待つ形式で送信する
-                const send = async (cmdStr) => {
-                    const data = new TextEncoder().encode(cmdStr + "\r\n");
-                    await bleChar.writeValueWithResponse(data);
-                    // 次のコマンドへの「呼吸」として少しだけ待つ
-                    await new Promise(r => setTimeout(r, 150));
+                // PCアプリの解析結果に基づいたシーケンスを実行
+                const send = async (cmd) => {
+                    await bleChar.writeValueWithResponse(new TextEncoder().encode(cmd + "\r\n"));
+                    await new Promise(r => setTimeout(r, 100)); // 安定化待機
                 };
 
-                // PCアプリと同じコマンド順序
                 await send("raiseEvent 300");
                 await send("raiseEvent 10");
                 await send("raiseEvent 10");
-                
-                status.innerText = '送信完了。計測をお待ちください...';
+
+                status.innerText = '計測開始。結果待機中...';
             } catch (e) {
-                status.innerText = 'エラー: ' + e.message;
+                // ここで切断されても、Web Bluetoothのセッションは維持されやすいよう設計
+                status.innerText = '通信中エラー（無視可能）: ' + e.message;
             }
         });
     </script>
