@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Disto PC-Sequence Controller</title>
+</head>
+<body>
+    <button type="button" id="connectBtn">1. デバイス接続</button>
+    <button type="button" id="measureBtn" disabled>2. 計測実行</button>
+    <p id="status">ステータス: 未接続</p>
+
+    <script>
+        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+        const CHAR_UUID = '3ab10120-f831-4395-b29d-570977d5bf94';
+        let bleChar = null;
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            const device = await navigator.bluetooth.requestDevice({
+                filters: [{ services: [SERVICE_UUID] }]
+            });
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(SERVICE_UUID);
+            bleChar = await service.getCharacteristic(CHAR_UUID);
+            document.getElementById('status').innerText = '接続成功';
+            document.getElementById('measureBtn').disabled = false;
+        });
+
+        // PCアプリの挙動を再現する関数
+        async function sendCommand(cmdStr) {
+            const cmd = new TextEncoder().encode(cmdStr + "\r\n");
+            await bleChar.writeValueWithResponse(cmd); // PCと同じくResponseを待つ
+        }
+
+        document.getElementById('measureBtn').addEventListener('click', async () => {
+            try {
+                document.getElementById('status').innerText = 'PCシーケンス開始...';
+
+                // PCアプリのパケット解析に基づき、500ms間隔で送信
+                await sendCommand("raiseEvent 300");
+                await new Promise(r => setTimeout(r, 500)); 
+                await sendCommand("raiseEvent 10");
+                
+                document.getElementById('status').innerText = 'シーケンス完了：接続維持確認中';
+            } catch (e) {
+                document.getElementById('status').innerText = '接続切断エラー: ' + e.message;
+            }
+        });
+    </script>
+</body>
+</html>
