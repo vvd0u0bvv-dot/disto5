@@ -1,13 +1,44 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto Control</title>
 </head>
-<body style="background-color: yellow;">
-    <h1>Bluefy 表示テスト</h1>
+<body style="background-color: yellow; padding: 20px;">
+    <h1>Disto D5 Controller</h1>
+    <button id="btn" style="padding: 20px; font-size: 20px;">計測開始</button>
+    <div id="status" style="margin-top: 20px;">待機中...</div>
+
     <script>
-        alert("JS実行成功");
-        document.body.innerHTML += "<p>Bluetooth可用性: " + (!!navigator.bluetooth) + "</p>";
+        const btn = document.getElementById('btn');
+        const status = document.getElementById('status');
+
+        btn.onclick = async () => {
+            try {
+                status.innerText = "接続中...デバイスを選んでください";
+                
+                // Disto D5への接続（フィルタなしにして、デバイスが見つからないリスクを排除）
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['3ab10100-f831-4395-b29d-570977d5bf94']
+                });
+
+                status.innerText = "GATT接続中...";
+                const server = await device.gatt.connect();
+
+                status.innerText = "サービス取得...";
+                const service = await server.getPrimaryService('3ab10100-f831-4395-b29d-570977d5bf94');
+                const char = await service.getCharacteristic('3ab10120-f831-4395-b29d-570977d5bf94');
+
+                status.innerText = "コマンド送信中...";
+                await char.writeValue(new TextEncoder().encode("raiseEvent 300\r\n"));
+                
+                status.innerText = "成功！コマンドを送信しました";
+            } catch (err) {
+                status.innerText = "エラー: " + err.message;
+            }
+        };
     </script>
 </body>
 </html>
