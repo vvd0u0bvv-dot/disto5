@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto BLE Controller</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        button { padding: 15px; font-size: 18px; width: 100%; }
+        #status { margin-top: 20px; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>レーザー距離計 コントローラー</h1>
+    <button id="btn">接続 & 計測指令</button>
+    <div id="status">待機中...</div>
+
+    <script>
+        const btn = document.getElementById('btn');
+        const statusDiv = document.getElementById('status');
+        
+        // サービスUUIDとキャラクタリスティックUUID（Distoの仕様に合わせてください）
+        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+        const CHAR_UUID = '3ab10120-f831-4395-b29d-570977d5bf94';
+
+        btn.onclick = async () => {
+            try {
+                statusDiv.innerText = "1. デバイスを検索中...";
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+
+                statusDiv.innerText = "2. 接続中...";
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                const char = await service.getCharacteristic(CHAR_UUID);
+
+                statusDiv.innerText = "3. コマンド送信中...";
+                const cmd = new TextEncoder().encode("raiseEvent 300\r\n");
+                await char.writeValue(cmd);
+                
+                statusDiv.innerText = "成功: 計測指令を送信しました。";
+            } catch (err) {
+                statusDiv.innerText = "エラー: " + err.message;
+            }
+        };
+    </script>
+</body>
+</html>
