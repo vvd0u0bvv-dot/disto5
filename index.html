@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto Write-Only Controller</title>
+</head>
+<body>
+    <button type="button" id="connectBtn">1. デバイス接続</button>
+    <button type="button" id="measureBtn" disabled>2. 計測開始</button>
+    <p id="status">ステータス: 未接続</p>
+    <textarea id="result" rows="4" style="width: 100%;" placeholder="計測結果..."></textarea>
+
+    <script>
+        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+        const CHAR_UUID = '3ab10120-f831-4395-b29d-570977d5bf94';
+        
+        let bleChar = null;
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+                
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                bleChar = await service.getCharacteristic(CHAR_UUID);
+
+                // 【重要】通知はサポート外のため削除
+                document.getElementById('status').innerText = '接続成功：通知設定はスキップしました';
+                document.getElementById('measureBtn').disabled = false;
+                document.getElementById('connectBtn').disabled = true;
+            } catch (e) {
+                document.getElementById('status').innerText = '接続エラー: ' + e.message;
+            }
+        });
+
+        document.getElementById('measureBtn').addEventListener('click', async () => {
+            if (!bleChar) return;
+            try {
+                document.getElementById('status').innerText = '計測リクエスト送信中...';
+                
+                // 応答を待つ形式で送信（LightBlueの設定に合わせる）
+                // デバイス側がこの書き込みに応答として計測値を返す仕様を想定
+                const cmd = new TextEncoder().encode("raiseEvent 10\r\n");
+                
+                // 書き込みを実行し、応答を待機する
+                await bleChar.writeValueWithResponse(cmd);
+                
+                document.getElementById('status').innerText = '送信成功：応答待機終了';
+            } catch (e) {
+                document.getElementById('status').innerText = 'エラー: ' + e.message;
+                // エラー時もセッションを保持できるよう、ここでは再接続ロジックを入れない
+            }
+        });
+    </script>
+</body>
+</html>
