@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Single-Trigger Controller</title>
+    <title>Disto Double-Trigger Controller</title>
 </head>
 <body>
     <button type="button" id="connectBtn">1. デバイス接続</button>
-    <button type="button" id="measureBtn" disabled>2. 計測トリガー送信</button>
+    <button type="button" id="measureBtn" disabled>2. 計測シーケンス実行 (10 x 2)</button>
     <p id="status">ステータス: 未接続</p>
     <textarea id="result" rows="8" style="width: 100%;" readonly></textarea>
 
@@ -36,12 +36,12 @@
                 const characteristics = await service.getCharacteristics();
                 
                 for (const char of characteristics) {
-                    // 書き込み可能な通信口を自動選択
+                    // 書き込み可能な口を自動確保
                     if (char.properties.write || char.properties.writeWithoutResponse) {
                         bleCharCmd = char;
-                        log(`★ コマンド通信口を確保: ${char.uuid.substring(4, 8)}`);
+                        log(`★ コマンド通信口確保: ${char.uuid.substring(4, 8)}`);
                     }
-                    // 接続維持用の通知購読
+                    // 接続維持用のダミー通知購読
                     if (char.properties.notify || char.properties.indicate) {
                         try {
                             await char.startNotifications();
@@ -50,25 +50,36 @@
                     }
                 }
 
-                if (!bleCharCmd) throw new Error('書き込み可能な通信口が見つかりません');
+                if (!bleCharCmd) throw new Error('書き込み可能な口が見つかりません');
                 document.getElementById('measureBtn').disabled = false;
                 document.getElementById('connectBtn').disabled = true;
                 log('準備完了');
             } catch (e) {
-                log('接続エラー: ' + e.message);
+                log('エラー: ' + e.message);
             }
         });
 
         document.getElementById('measureBtn').addEventListener('click', async () => {
             if (!bleCharCmd) return;
             try {
-                log('raiseEvent 10 送信中...');
+                log('シーケンス開始 (raiseEvent 10 x 2)...');
                 
-                // 応答を待つ形式でコマンドを1回のみ送信
-                const data = new TextEncoder().encode("raiseEvent 10\r\n");
-                await bleCharCmd.writeValueWithResponse(data);
+                const send = async () => {
+                    const data = new TextEncoder().encode("raiseEvent 10\r\n");
+                    await bleCharCmd.writeValueWithResponse(data);
+                };
+
+                // 1回目送信
+                await send();
+                log('1回目送信完了');
                 
-                log('送信成功：計測要求完了');
+                // 500ms待機
+                await new Promise(r => setTimeout(r, 500));
+                
+                // 2回目送信
+                await send();
+                log('2回目送信完了：計測開始');
+
             } catch (e) {
                 log('送信エラー: ' + e.message);
             }
