@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto BLE App</title>
+</head>
+<body>
+    <h1>Disto D5 Control</h1>
+    <button id="connectBtn" style="padding: 20px;">接続して計測</button>
+    <div id="log" style="margin-top: 20px; font-family: monospace;"></div>
+
+    <script>
+        const btn = document.getElementById('connectBtn');
+        const logDiv = document.getElementById('log');
+
+        btn.onclick = async () => {
+            try {
+                logDiv.innerText = "デバイスを探しています...";
+                
+                // GitHub公開用：フィルタを緩めて接続しやすくする
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'Leica' }], // Leica製のデバイスを優先探索
+                    optionalServices: ['3ab10100-f831-4395-b29d-570977d5bf94']
+                });
+
+                logDiv.innerText = "接続中...";
+                const server = await device.gatt.connect();
+                
+                logDiv.innerText = "サービス取得中...";
+                const service = await server.getPrimaryService('3ab10100-f831-4395-b29d-570977d5bf94');
+                const char = await service.getCharacteristic('3ab10120-f831-4395-b29d-570977d5bf94');
+
+                logDiv.innerText = "コマンド送信...";
+                await char.writeValue(new TextEncoder().encode("raiseEvent 300\r\n"));
+                logDiv.innerText = "成功！";
+            } catch (err) {
+                logDiv.innerText = "エラー: " + err.message;
+            }
+        };
+    </script>
+</body>
+</html>
