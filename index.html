@@ -3,111 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Disconnect Prevention</title>
+    <title>Disto Universal Controller</title>
 </head>
 <body>
     <button type="button" id="connectBtn">1. デバイス接続</button>
-    <button type="button" id="measureBtn" disabled>2. 計測開始（レーザー照射）</button>
+    <button type="button" id="measureBtn" disabled>2. 計測開始</button>
     <p id="status">ステータス: 未接続</p>
-    <textarea id="result" rows="6" style="width: 100%;" readonly placeholder="システムログ..."></textarea>
+    <textarea id="result" rows="8" style="width: 100%;" readonly></textarea>
 
     <script>
         const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
-        const CHAR_UUID_CMD = '3ab10120-f831-4395-b29d-570977d5bf94';
-        
         let bleCharCmd = null;
 
-        // ログ出力用関数
         const log = (msg) => {
-            const resultArea = document.getElementById('result');
-            resultArea.value += msg + '\n';
-            resultArea.scrollTop = resultArea.scrollHeight; // 自動スクロール
+            const area = document.getElementById('result');
+            area.value += msg + '\n';
+            area.scrollTop = area.scrollHeight;
             document.getElementById('status').innerText = msg;
         };
 
         document.getElementById('connectBtn').addEventListener('click', async () => {
             try {
-                log('接続中...');
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ services: [SERVICE_UUID] }]
                 });
                 
-                // 切断されたときのイベントリスナーを登録
-                device.addEventListener('gattserverdisconnected', () => {
-                    log('【警告】デバイスから切断されました');
-                    document.getElementById('measureBtn').disabled = true;
-                    document.getElementById('connectBtn').disabled = false;
-                });
+                device.addEventListener('gattserverdisconnected', () => log('切断されました'));
 
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                
-                // 【重要】サービス内の「全て」のキャラクタリスティックを自動取得
                 const characteristics = await service.getCharacteristics();
                 
+                log(`計 ${characteristics.length} 個の通信口を確認`);
+
                 for (const char of characteristics) {
-                    // もし「通知（Notify/Indicate）」機能を持つものがあれば、全てダミー購読する
-                    // これにより、Distoが「送信先がない」と怒って切断するのを防ぐ
+                    log(`検出: ${char.uuid.substring(4, 8)} (Write: ${char.properties.write || char.properties.writeWithoutResponse})`);
+                    
+                    // 「書き込み可能」な通信口を自動的にコマンド用に割り当てる
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        bleCharCmd = char;
+                        log(`★ コマンド用として設定: ${char.uuid.substring(4, 8)}`);
+                    }
+                    // ついでに通知機能があれば全部有効化しておく
                     if (char.properties.notify || char.properties.indicate) {
                         try {
                             await char.startNotifications();
-                            // データが飛んできても何もせず破棄（Distoを安心させるため）
                             char.addEventListener('characteristicvaluechanged', () => {});
-                            log(`通知ポート有効化: ${char.uuid.substring(4,8)}`);
-                        } catch (err) {
-                            console.warn('通知有効化スキップ:', err);
-                        }
-                    }
-                    
-                    // コマンド制作用（書き込み用）のキャラクタリスティックを保存
-                    if (char.uuid === CHAR_UUID_CMD) {
-                        bleCharCmd = char;
+                        } catch(e) {}
                     }
                 }
 
-                if (!bleCharCmd) {
-                    throw new Error('コマンド用の通信口が見つかりません');
-                }
-
-                log('接続成功：計測準備完了（切断防止策適用済み）');
+                if (!bleCharCmd) throw new Error('書き込み可能な通信口が見つかりません');
                 document.getElementById('measureBtn').disabled = false;
                 document.getElementById('connectBtn').disabled = true;
             } catch (e) {
-                log('接続エラー: ' + e.message);
+                log('エラー: ' + e.message);
             }
         });
 
         document.getElementById('measureBtn').addEventListener('click', async () => {
             if (!bleCharCmd) return;
-            
             try {
-                log('計測シーケンス実行中...');
-                document.getElementById('measureBtn').disabled = true;
-
-                // PCアプリの解析通りの応答待ち + 約500msのディレイ
-                const sendCommand = async (cmdStr) => {
-                    const data = new TextEncoder().encode(cmdStr + "\r\n");
-                    await bleCharCmd.writeValueWithResponse(data);
+                log('シーケンス開始...');
+                const send = async (cmd) => {
+                    await bleCharCmd.writeValueWithResponse(new TextEncoder().encode(cmd + "\r\n"));
+                    await new Promise(r => setTimeout(r, 500));
                 };
 
-                await sendCommand("raiseEvent 300");
-                await new Promise(r => setTimeout(r, 500)); 
-
-                await sendCommand("raiseEvent 10");
-                await new Promise(r => setTimeout(r, 500)); 
-
-                await sendCommand("raiseEvent 10");
-                
-                log('送信完了：レーザー照射確認中');
+                await send("raiseEvent 300");
+                await send("raiseEvent 10");
+                await send("raiseEvent 10");
+                log('送信完了');
             } catch (e) {
-                log('エラー: ' + e.message);
-            } finally {
-                // 連打防止のため、処理が終わったらボタンを再度有効化
-                setTimeout(() => {
-                    if (bleCharCmd && bleCharCmd.service.device.gatt.connected) {
-                        document.getElementById('measureBtn').disabled = false;
-                    }
-                }, 1000);
+                log('送信エラー: ' + e.message);
             }
         });
     </script>
