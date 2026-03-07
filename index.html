@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <button id="connectBtn">デバイス接続 & 計測開始</button>
+    <p id="status">ステータス: 未接続</p>
+    <input type="text" id="result" placeholder="ここに計測結果が表示されます">
+
+    <script>
+        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+        const CHAR_UUID = '3ab10120-f831-4395-b29d-570977d5bf94';
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                // 1. デバイス検索
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+                document.getElementById('status').innerText = '接続中...';
+
+                // 2. 接続
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                const char = await service.getCharacteristic(CHAR_UUID);
+
+                // 3. コマンド送信
+                const encoder = new TextEncoder();
+                await char.writeValue(encoder.encode("raiseEvent 10\r\n"));
+                document.getElementById('status').innerText = 'コマンド送信成功！';
+
+            } catch (error) {
+                console.error(error);
+                document.getElementById('status').innerText = 'エラー: ' + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
