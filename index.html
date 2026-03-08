@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto Pro - Dashboard</title>
+    <style>
+        :root { --primary: #2563eb; --accent: #10b981; --bg: #f8fafc; --text: #1e293b; }
+        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .header { margin-bottom: 20px; }
+        
+        .tab-menu { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab { flex: 1; padding: 12px; background: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .tab.active { background: var(--primary); color: white; }
+        
+        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .value-big { font-size: 2.5rem; font-weight: 800; color: var(--primary); }
+        .label { font-size: 0.875rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        
+        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-measure { background: var(--accent); color: white; margin-top: 10px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .warning { background: #fef3c7; color: #92400e; padding: 15px; border-radius: 12px; border-left: 4px solid #d97706; margin: 15px 0; display: none; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header"><h2>Disto Pro</h2></div>
+        <div class="tab-menu">
+            <button class="tab active" onclick="switchTab('setup')">設定</button>
+            <button class="tab" onclick="switchTab('measure')">計測</button>
+        </div>
+
+        <div id="setup-view" class="view">
+            <button id="connectBtn" class="btn btn-primary">デバイスを接続</button>
+            <div class="card" style="margin-top:20px;">
+                <div class="label">基準値（初期設定）</div>
+                <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                    <div><div class="label">距離</div><span id="savedDist">---</span>m</div>
+                    <div><div class="label">角度</div><span id="savedAngle">---</span>°</div>
+                    <div><div class="label">水平距離</div><span id="savedHoriz">---</span>m</div>
+                </div>
+            </div>
+            <button id="measureSetupBtn" class="btn btn-measure" disabled>基準値を記録</button>
+        </div>
+
+        <div id="measure-view" class="view hidden">
+            <div class="card">
+                <div class="label">現在の斜距離</div>
+                <div id="distDisplay" class="value-big">---.---</div>
+                <div style="display:flex; justify-content:space-between; margin-top:15px;">
+                    <div><div class="label">角度</div><span id="angleDisplay" style="font-weight:700">---</span>°</div>
+                    <div><div class="label">水平距離</div><span id="horizDisplay" style="font-weight:700">---</span>m</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="label">基準との差分 (cm)</div>
+                <div id="diffDisplay" class="value-big" style="color:var(--accent)">---</div>
+            </div>
+            <div id="warningMsg" class="warning">⚠️ 治具がズレていませんか？</div>
+            <button id="measureBtn" class="btn btn-primary" disabled>計測開始</button>
+        </div>
+    </div>
+
+    <script>
+        // (ロジックは以前の完全コードをそのまま統合してください)
+        function switchTab(view) {
+            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(view + '-view').classList.remove('hidden');
+            event.target.classList.add('active');
+        }
+        
+        // [ここに前述のhandleData、connectBtn、executeMeasure等のロジックを配置]
+    </script>
+</body>
+</html>
