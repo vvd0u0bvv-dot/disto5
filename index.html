@@ -3,34 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Pro - Data Decoder</title>
+    <title>Disto Pro - Final Decoder</title>
     <style>
         body { font-family: -apple-system, sans-serif; margin: 20px; background-color: #f0f2f5; color: #1c1e21; }
         .tab-container { display: flex; background: #ddd; border-radius: 8px 8px 0 0; overflow: hidden; }
-        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; transition: 0.3s; background: #eee; }
-        .tab.active { background: #fff; font-weight: bold; border-top: 3px solid #007bff; }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; background: #eee; }
+        .tab.active { background: #fff; font-weight: bold; border-top: 3px solid #28a745; }
         .tab-content { display: none; background: #fff; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .tab-content.active { display: block; }
-        
-        .distance-card { background: #007bff; color: white; padding: 25px; border-radius: 12px; text-align: center; margin: 20px 0; }
-        .distance-value { font-size: 4rem; font-weight: bold; display: inline-block; }
-        .distance-unit { font-size: 1.5rem; opacity: 0.9; margin-left: 5px; }
-        .angle-display { margin-top: 10px; font-size: 1.3rem; background: rgba(0,0,0,0.2); display: inline-block; padding: 5px 15px; border-radius: 20px; }
-        
-        button { padding: 16px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background-color: #28a745; color: white; transition: 0.2s; width: 100%; font-weight: bold; margin-top: 10px; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        #connectBtn { background-color: #007bff; }
-        
+        .distance-card { background: #28a745; color: white; padding: 25px; border-radius: 12px; text-align: center; margin: 20px 0; }
+        .distance-value { font-size: 3.5rem; font-weight: bold; }
+        .angle-display { margin-top: 10px; font-size: 1.2rem; background: rgba(0,0,0,0.2); padding: 5px 15px; border-radius: 20px; display: inline-block; }
+        button { padding: 16px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; width: 100%; font-weight: bold; }
+        button:disabled { background-color: #ccc; }
         .log-area { margin-top: 20px; }
-        textarea { width: 100%; box-sizing: border-box; font-family: 'SFMono-Regular', Consolas, monospace; border-radius: 6px; border: 1px solid #ddd; padding: 10px; background: #222; color: #0f0; font-size: 12px; }
-        #status { font-size: 14px; margin-bottom: 10px; color: #666; font-weight: bold; }
-        
-        .hex-data { font-family: monospace; background: #f8f9fa; padding: 8px; border-radius: 4px; border: 1px solid #eee; word-break: break-all; color: #d63384; font-size: 11px; }
+        textarea { width: 100%; box-sizing: border-box; font-family: monospace; border-radius: 6px; background: #222; color: #0f0; padding: 10px; font-size: 11px; }
+        .hex-box { background: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 12px; color: #d63384; word-break: break-all; }
     </style>
 </head>
 <body>
 
-    <div id="status">システム待機中...</div>
+    <div id="status">準備完了</div>
 
     <div class="tab-container">
         <div id="tab-setup" class="tab active" onclick="openTab('setup')">初期設定</div>
@@ -38,36 +31,28 @@
     </div>
 
     <div id="setup" class="tab-content active">
-        <h3>デバイス連携</h3>
-        <p>Distoを選択し、全通知プロトコルを同期します。</p>
         <button type="button" id="connectBtn">Disto D5 を接続</button>
     </div>
 
     <div id="measurement" class="tab-content">
         <div class="distance-card">
-            <div>
-                <span class="distance-value" id="distDisplay">-.----</span>
-                <span class="distance-unit">m</span>
-            </div>
-            <div class="angle-display">
-                角度: <span id="angleDisplay">--.--</span> °
-            </div>
+            <div id="distDisplay" class="distance-value">---.---</div>
+            <div style="font-size:1.5rem">m</div>
+            <div class="angle-display">角度: <span id="angleDisplay">--.-</span> °</div>
         </div>
-        <button type="button" id="measureBtn" disabled>MEASURE (raiseEvent 10 x 2)</button>
-        
-        <div style="margin-top: 20px; font-size: 12px; color: #555;">
+        <button type="button" id="measureBtn" disabled>MEASURE (10 x 2)</button>
+        <div style="margin-top:15px">
             <strong>Raw Hex Data [010D]:</strong>
-            <div class="hex-data" id="rawData">N/A</div>
+            <div id="rawData" class="hex-box">None</div>
         </div>
     </div>
 
     <div class="log-area">
-        <textarea id="result" rows="10" readonly placeholder="通信ログ..."></textarea>
+        <textarea id="result" rows="12" readonly></textarea>
     </div>
 
     <script>
-        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
-        const DIST_CHAR_UUID = '3ab1010d-f831-4395-b29d-570977d5bf94';
+        const DIST_SHORT_UUID = '010d'; // 判定用のキーワード
         let bleCharCmd = null;
 
         function openTab(tabId) {
@@ -84,113 +69,81 @@
             document.getElementById('status').innerText = msg;
         };
 
-        // バイナリデータを16進数文字列に変換する関数 (デバッグ用)
         function buf2hex(buffer) {
             return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
         }
 
-        function handleIncomingData(event) {
-            const uuid = event.target.uuid;
-            const value = event.target.value; // DataViewオブジェクト
-            const shortUuid = uuid.substring(4, 8).toUpperCase();
+        function handleData(event) {
+            const char = event.target;
+            const value = char.value;
+            const uuid = char.uuid.toLowerCase(); // 小文字に統一して比較
             
-            let logText = "";
+            // 010d が含まれているか判定
+            if (uuid.includes(DIST_SHORT_UUID)) {
+                const hex = buf2hex(value.buffer);
+                document.getElementById('rawData').innerText = "0x" + hex;
 
-            if (uuid === DIST_CHAR_UUID) {
-                // [010D] の場合：バイナリ(Float32)として解析
-                // 1. 16進数文字列を取得して表示
-                const hexStr = buf2hex(value.buffer);
-                document.getElementById('rawData').innerText = "0x" + hexStr;
-
-                // 2. バイト0〜3: 距離 (m) - リトルエンディアン(true)
-                const distance = value.getFloat32(0, true);
-                
-                // 3. バイト4〜7: 角度 (ラジアン) - リトルエンディアン(true)
-                const angleRad = value.getFloat32(4, true);
-                const angleDeg = angleRad * (180 / Math.PI); // ラジアンから度数法へ変換
-
-                // UI更新 (小数点以下4桁と2桁でフォーマット)
-                document.getElementById('distDisplay').innerText = distance.toFixed(4);
-                document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
-                
-                logText = `距離: ${distance.toFixed(4)}m, 角度: ${angleDeg.toFixed(2)}°`;
-            } else {
-                // それ以外のポート (例: 0121 の raiseEvent: !) はテキストとして解析を試みる
                 try {
-                    const decoded = new TextDecoder().decode(value).trim();
-                    logText = decoded.replace(/\n|\r/g, ""); // 改行を取り除いて表示
-                } catch(e) {
-                    logText = "[バイナリデータ]";
-                }
-            }
+                    // Float32 リトルエンディアン解析
+                    const dist = value.getFloat32(0, true);
+                    const angleRad = value.getFloat32(4, true);
+                    const angleDeg = angleRad * (180 / Math.PI);
 
-            log(`[${shortUuid}] ${logText}`);
+                    document.getElementById('distDisplay').innerText = dist.toFixed(4);
+                    document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
+                    log(`解析成功: ${dist.toFixed(4)}m / ${angleDeg.toFixed(2)}°`);
+                } catch (e) {
+                    log('解析エラー: ' + e.message);
+                }
+            } else {
+                // その他の通知 (raiseEventなど)
+                const decoded = new TextDecoder().decode(value).trim();
+                log(`[${uuid.substring(4,8)}] 受信: ${decoded}`);
+            }
         }
 
         document.getElementById('connectBtn').addEventListener('click', async () => {
             try {
-                log('デバイスを検索中...');
                 const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ services: [SERVICE_UUID] }]
+                    filters: [{ services: ['3ab10100-f831-4395-b29d-570977d5bf94'] }]
                 });
                 
-                device.addEventListener('gattserverdisconnected', () => {
-                    log('切断されました。再接続してください。');
-                    document.getElementById('measureBtn').disabled = true;
-                    document.getElementById('connectBtn').disabled = false;
-                });
-
                 const server = await device.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                const characteristics = await service.getCharacteristics();
+                const service = await server.getPrimaryService('3ab10100-f831-4395-b29d-570977d5bf94');
+                const chars = await service.getCharacteristics();
                 
-                log(`${characteristics.length}個のポートを同期中...`);
+                log(`${chars.length}個の通信口をセットアップ中...`);
 
-                for (const char of characteristics) {
-                    const p = char.properties;
-                    const id = char.uuid.substring(4, 8).toUpperCase();
-
-                    if (p.notify || p.indicate) {
-                        try {
-                            const type = p.indicate ? 'IND' : 'NOTIFY';
-                            await char.startNotifications();
-                            char.addEventListener('characteristicvaluechanged', handleIncomingData);
-                            log(`同期完了: [${id}] (${type})`);
-                        } catch (err) {
-                            log(`同期失敗: [${id}]`);
-                        }
+                for (const c of chars) {
+                    const props = c.properties;
+                    if (props.notify || props.indicate) {
+                        await c.startNotifications();
+                        c.addEventListener('characteristicvaluechanged', handleData);
+                        log(`同期OK: ${c.uuid.substring(4,8)}`);
                     }
-
-                    if (p.write || p.writeWithoutResponse) {
-                        bleCharCmd = char;
-                        log(`コマンドポート設定: [${id}]`);
+                    if (props.write || props.writeWithoutResponse) {
+                        bleCharCmd = c;
+                        log(`送信口確保: ${c.uuid.substring(4,8)}`);
                     }
                 }
 
                 document.getElementById('measureBtn').disabled = false;
-                document.getElementById('connectBtn').disabled = true;
-                log('システム準備完了。計測可能です。');
+                log('準備完了。計測タブへ移動してください');
                 setTimeout(() => openTab('measurement'), 1000);
-
             } catch (e) {
-                log('エラー: ' + e.message);
+                log('Error: ' + e.message);
             }
         });
 
         document.getElementById('measureBtn').addEventListener('click', async () => {
             if (!bleCharCmd) return;
+            const send = () => bleCharCmd.writeValueWithResponse(new TextEncoder().encode("raiseEvent 10\r\n"));
             try {
-                const send = async () => {
-                    await bleCharCmd.writeValueWithResponse(new TextEncoder().encode("raiseEvent 10\r\n"));
-                };
-                log('計測トリガー送信中...');
+                log('Trigger...');
                 await send();
                 await new Promise(r => setTimeout(r, 500));
                 await send();
-                log('データ受信待機中...');
-            } catch (e) {
-                log('送信失敗: ' + e.message);
-            }
+            } catch (e) { log('送信失敗: ' + e.message); }
         });
     </script>
 </body>
