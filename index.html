@@ -2,23 +2,38 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Pro - UI Optimized</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Disto Pro - Fixed Height</title>
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 20px; background: #fff; }
-        .tabs { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px; }
-        .tab { padding: 15px 30px; cursor: pointer; border: 1px solid #ccc; border-bottom: none; background: #eee; }
-        .tab.active { background: #fff; font-weight: bold; border-top: 2px solid #007bff; }
-        .content { display: none; }
-        .content.active { display: block; }
+        /* 画面全体を固定し、スクロールを抑制 */
+        body { 
+            font-family: sans-serif; 
+            margin: 0; 
+            padding: 5px; /* 余白を最小に */
+            background: #fff; 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            box-sizing: border-box;
+            overflow: hidden; /* スクロール禁止 */
+        }
 
-        .btn-connect { background: #00bfff; color: white; padding: 20px; width: 100%; border: none; font-size: 1.2rem; margin-bottom: 20px; }
-        .btn-measure { background: #9acd32; color: black; padding: 40px; width: 100%; border: none; font-size: 2rem; font-weight: bold; }
+        .tabs { display: flex; border-bottom: 2px solid #ccc; flex-shrink: 0; }
+        .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ccc; border-bottom: none; background: #eee; flex: 1; text-align: center; }
+        .tab.active { background: #fff; font-weight: bold; border-top: 2px solid #007bff; }
         
-        .val-display { font-size: 5rem; font-weight: bold; text-align: center; margin: 20px 0; }
-        .warning { background: red; color: white; padding: 20px; text-align: center; font-size: 1.5rem; font-weight: bold; display: none; margin-bottom: 10px; }
+        .content { display: none; flex-grow: 1; overflow: hidden; }
+        .content.active { display: flex; flex-direction: column; }
+
+        .btn-connect { background: #00bfff; color: white; padding: 10px; width: 100%; border: none; font-size: 1rem; flex-shrink: 0; }
+        .btn-measure { background: #9acd32; color: black; padding: 15px; width: 100%; border: none; font-size: 1.5rem; font-weight: bold; flex-shrink: 0; margin-top: 5px; }
         
-        .info-panel { border: 1px solid #333; padding: 20px; }
+        .val-display { font-size: 4rem; font-weight: bold; text-align: center; margin: 5px 0; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
+        .warning { background: red; color: white; padding: 5px; text-align: center; font-size: 1.2rem; font-weight: bold; display: none; flex-shrink: 0; }
+        
+        .info-panel { border: 1px solid #333; padding: 10px; margin: 5px 0; font-size: 0.9rem; }
+        h3 { margin: 0 0 5px 0; font-size: 1rem; }
+        p { margin: 2px 0; }
     </style>
 </head>
 <body>
@@ -36,7 +51,7 @@
             <p>角度: <span id="savedAngle">---</span> °</p>
             <p><strong>水平距離: <span id="savedHoriz">---</span> m</strong></p>
         </div>
-        <button class="btn-measure" id="measureSetupBtn" style="margin-top:20px;" disabled>初期値として計測</button>
+        <button class="btn-measure" id="measureSetupBtn" disabled>初期値として計測</button>
     </div>
 
     <div id="measure" class="content">
@@ -46,7 +61,6 @@
     </div>
 
     <script>
-        // 動作確認済みのロジックをそのまま使用
         const DIST_SHORT_UUID = '010d';
         let bleCharCmd = null;
         let isSaving = false;
