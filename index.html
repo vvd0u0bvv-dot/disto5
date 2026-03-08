@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Pro - Horizontal Distance</title>
+    <title>Disto Pro - Comparison Tool</title>
     <style>
         body { font-family: -apple-system, sans-serif; margin: 20px; background-color: #f0f2f5; }
         .tab-container { display: flex; background: #ddd; border-radius: 8px 8px 0 0; }
@@ -15,6 +15,7 @@
         .storage-card { background: #6c757d; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         .distance-card { background: #28a745; color: white; padding: 25px; border-radius: 12px; text-align: center; margin: 20px 0; }
         .val { font-size: 2.2rem; font-weight: bold; }
+        .warning { background: #ffc107; color: #856404; padding: 15px; border-radius: 8px; font-weight: bold; margin-top: 10px; display: none; }
         
         button { padding: 16px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; width: 100%; font-weight: bold; margin-top: 10px; }
         button:disabled { background-color: #ccc; }
@@ -33,7 +34,7 @@
     <div id="setup" class="tab-content active">
         <button type="button" id="connectBtn">Disto D5 を接続</button>
         <div class="storage-card">
-            <h4>記録された参照値 (永続保存)</h4>
+            <h4>記録された参照値</h4>
             <p>斜距離: <span id="savedDist">---</span> m</p>
             <p>角度: <span id="savedAngle">---</span> °</p>
             <p><strong>水平距離: <span id="savedHoriz">---</span> m</strong></p>
@@ -47,6 +48,9 @@
             <div style="font-size:1rem">斜距離(m)</div>
             <div style="margin-top:10px">角度: <span id="angleDisplay">--.-</span> °</div>
             <div style="font-size:1.2rem; margin-top:5px"><strong>水平距離: <span id="horizDisplay">---.---</span> m</strong></div>
+            <hr>
+            <div style="font-size:1.2rem">基準との差分: <span id="diffDisplay">---.---</span> m</div>
+            <div id="warningMsg" class="warning">⚠️ 治具がズレていませんか？</div>
         </div>
         <button type="button" id="measureBtn" disabled>計測 (raiseEvent 10 x 2)</button>
     </div>
@@ -85,24 +89,37 @@
                 const dist = value.getFloat32(0, true);
                 const angleRad = value.getFloat32(4, true);
                 const angleDeg = angleRad * (180 / Math.PI);
-                const horizDist = dist * Math.cos(angleRad); // 水平距離の算出
+                const horizDist = dist * Math.cos(angleRad);
 
-                // 計測タブ表示
+                // メイン表示
                 document.getElementById('distDisplay').innerText = dist.toFixed(4);
                 document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
                 document.getElementById('horizDisplay').innerText = horizDist.toFixed(4);
+
+                // 比較・警告処理
+                const savedH = parseFloat(localStorage.getItem('disto_horiz'));
+                const savedA = parseFloat(localStorage.getItem('disto_angle'));
+
+                if (!isNaN(savedH)) {
+                    const diff = horizDist - savedH;
+                    document.getElementById('diffDisplay').innerText = diff.toFixed(4);
+                }
+
+                if (!isNaN(savedA) && Math.abs(angleDeg - savedA) >= 2.0) {
+                    document.getElementById('warningMsg').style.display = 'block';
+                } else {
+                    document.getElementById('warningMsg').style.display = 'none';
+                }
 
                 // 保存処理
                 if (isSaving) {
                     localStorage.setItem('disto_dist', dist.toFixed(4));
                     localStorage.setItem('disto_angle', angleDeg.toFixed(2));
                     localStorage.setItem('disto_horiz', horizDist.toFixed(4));
-                    
                     document.getElementById('savedDist').innerText = dist.toFixed(4);
                     document.getElementById('savedAngle').innerText = angleDeg.toFixed(2);
                     document.getElementById('savedHoriz').innerText = horizDist.toFixed(4);
-                    
-                    log(`値を保存: 水平距離 ${horizDist.toFixed(4)}m`);
+                    log(`保存完了: 水平距離 ${horizDist.toFixed(4)}m`);
                     isSaving = false;
                 }
             }
