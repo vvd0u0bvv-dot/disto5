@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disto Multi-Tab Controller</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f9; }
+        .tab-container { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px; }
+        .tab { padding: 10px 20px; cursor: pointer; border: 1px solid transparent; border-bottom: none; }
+        .tab.active { background-color: #fff; border-color: #ccc; border-bottom: 2px solid #fff; font-weight: bold; margin-bottom: -2px; }
+        .tab-content { display: none; background: #fff; padding: 20px; border: 1px solid #ccc; border-top: none; border-radius: 0 0 8px 8px; }
+        .tab-content.active { display: block; }
+        
+        button { padding: 12px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; border: none; background-color: #007bff; color: white; transition: 0.3s; width: 100%; margin-bottom: 10px; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        button:active { background-color: #0056b3; }
+        
+        textarea { width: 100%; box-sizing: border-box; font-family: monospace; border-radius: 5px; border: 1px solid #ccc; padding: 10px; background: #fafafa; }
+        #status { font-weight: bold; color: #333; margin-bottom: 10px; padding: 5px; background: #e9ecef; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div id="status">ステータス: 未接続</div>
+
+    <div class="tab-container">
+        <div class="tab active" onclick="openTab('setup')">初期設定</div>
+        <div class="tab" onclick="openTab('measurement')">計測</div>
+    </div>
+
+    <div id="setup" class="tab-content active">
+        <h3>1. デバイスとの接続</h3>
+        <p>Bluetoothをオンにして、下のボタンからDisto D5を選択してください。</p>
+        <button type="button" id="connectBtn">デバイスを接続する</button>
+        <p>※接続に成功すると「計測」タブが利用可能になります。</p>
+    </div>
+
+    <div id="measurement" class="tab-content">
+        <h3>2. 距離計測</h3>
+        <p>ボタンを押すと、Distoがレーザーを照射し計測を開始します。</p>
+        <button type="button" id="measureBtn" disabled>計測開始 (raiseEvent 10 x 2)</button>
+    </div>
+
+    <hr>
+    <h4>システムログ</h4>
+    <textarea id="result" rows="8" readonly placeholder="ログがここに表示されます..."></textarea>
+
+    <script>
+        const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
+        let bleCharCmd = null;
+
+        // タブ切り替え関数
+        function openTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        const log = (msg) => {
+            const area = document.getElementById('result');
+            area.value += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+            area.scrollTop = area.scrollHeight;
+            document.getElementById('status').innerText = `ステータス: ${msg}`;
+        };
+
+        // 接続処理
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                log('接続要求を開始...');
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }]
+                });
+                
+                device.addEventListener('gattserverdisconnected', () => {
+                    log('切断されました');
+                    document.getElementById('measureBtn').disabled = true;
+                    document.getElementById('connectBtn').disabled = false;
+                });
+
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                const characteristics = await service.getCharacteristics();
+                
+                for (const char of characteristics) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        bleCharCmd = char;
+                        log(`通信口確保: ${char.uuid.substring(4, 8)}`);
+                    }
+                    if (char.properties.notify || char.properties.indicate) {
+                        try {
+                            await char.startNotifications();
+                            char.addEventListener('characteristicvaluechanged', () => {});
+                        } catch(e) {}
+                    }
+                }
+
+                if (!bleCharCmd) throw new Error('書き込み可能な口が見つかりません');
+                
+                document.getElementById('measureBtn').disabled = false;
+                document.getElementById('connectBtn').disabled = true;
+                log('接続成功！計測タブへ移動してください');
+                
+                // 接続成功時に自動で計測タブへ移動する（お好みで）
+                setTimeout(() => openTab('measurement'), 1000);
+
+            } catch (e) {
+                log('エラー: ' + e.message);
+            }
+        });
+
+        // 計測処理 (10 x 2回送信)
+        document.getElementById('measureBtn').addEventListener('click', async () => {
+            if (!bleCharCmd) return;
+            try {
+                log('シーケンス開始...');
+                
+                const send = async () => {
+                    const data = new TextEncoder().encode("raiseEvent 10\r\n");
+                    await bleCharCmd.writeValueWithResponse(data);
+                };
+
+                await send();
+                log('1回目送信成功');
+                
+                await new Promise(r => setTimeout(r, 500));
+                
+                await send();
+                log('2回目送信成功：計測実行');
+
+            } catch (e) {
+                log('送信エラー: ' + e.message);
+            }
+        });
+    </script>
+</body>
+</html>
