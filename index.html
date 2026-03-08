@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Pro - Final Control</title>
+    <title>Disto Pro - Final Edition</title>
     <style>
         body { font-family: -apple-system, sans-serif; margin: 20px; background-color: #f0f2f5; }
         .tab-container { display: flex; background: #ddd; border-radius: 8px 8px 0 0; }
@@ -34,7 +34,7 @@
     <div id="setup" class="tab-content active">
         <button type="button" id="connectBtn">Disto D5 を接続</button>
         <div class="storage-card">
-            <h4>記録された参照値</h4>
+            <h4>記録された参照値 (永続保存)</h4>
             <p>斜距離: <span id="savedDist">---</span> m</p>
             <p>角度: <span id="savedAngle">---</span> °</p>
             <p><strong>水平距離: <span id="savedHoriz">---</span> m</strong></p>
@@ -49,7 +49,7 @@
             <div style="margin-top:10px">角度: <span id="angleDisplay">--.-</span> °</div>
             <div style="font-size:1.2rem; margin-top:5px"><strong>水平距離: <span id="horizDisplay">---.---</span> m</strong></div>
             <hr>
-            <div style="font-size:1.2rem">基準との差分: <span id="diffDisplay">---.---</span> m</div>
+            <div style="font-size:1.2rem">基準との差分: <span id="diffDisplay">---.---</span> cm</div>
             <div id="warningMsg" class="warning">⚠️ 治具がズレていませんか？</div>
         </div>
         <button type="button" id="measureBtn" disabled>計測 (raiseEvent 10 x 2)</button>
@@ -95,13 +95,13 @@
                 document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
                 document.getElementById('horizDisplay').innerText = horizDist.toFixed(4);
 
-                // 警告リセット＆比較判定
+                // 警告リセット＆比較判定 (cm表示)
                 document.getElementById('warningMsg').style.display = 'none';
                 const savedH = parseFloat(localStorage.getItem('disto_horiz'));
                 const savedA = parseFloat(localStorage.getItem('disto_angle'));
 
                 if (!isNaN(savedH)) {
-                    document.getElementById('diffDisplay').innerText = (horizDist - savedH).toFixed(4);
+                    document.getElementById('diffDisplay').innerText = ((horizDist - savedH) * 100).toFixed(2);
                 }
                 if (!isNaN(savedA) && Math.abs(angleDeg - savedA) >= 2.0) {
                     document.getElementById('warningMsg').style.display = 'block';
@@ -142,13 +142,11 @@
             } catch (e) { log('Error: ' + e.message); }
         });
 
-        // 共通計測関数（モードにより送信回数を切り替え）
         const executeMeasure = async (saveMode) => {
             if (!bleCharCmd) return;
             isSaving = saveMode;
             const cmd = new TextEncoder().encode("raiseEvent 10\r\n");
             
-            // 保存時は1回、通常計測時は2回送信
             await bleCharCmd.writeValueWithResponse(cmd);
             log(saveMode ? '初期設定計測 (1回送信)' : '通常計測 (1回目送信)');
             
