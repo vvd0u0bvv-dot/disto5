@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Distance Monitor</title>
+    <title>Disto Full-Notify Monitor</title>
     <style>
         body { font-family: sans-serif; margin: 20px; background-color: #f4f4f9; color: #333; }
         .tab-container { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px; }
@@ -12,11 +12,10 @@
         .tab-content { display: none; background: #fff; padding: 25px; border: 1px solid #ccc; border-top: none; border-radius: 0 0 8px 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         .tab-content.active { display: block; }
         
-        .distance-display { font-size: 3rem; font-weight: bold; color: #007bff; text-align: center; margin: 20px 0; padding: 20px; background: #f0f7ff; border-radius: 10px; border: 2px dashed #007bff; }
+        .distance-display { font-size: 3rem; font-weight: bold; color: #007bff; text-align: center; margin: 20px 0; padding: 20px; background: #f0f7ff; border-radius: 10px; border: 2px dashed #007bff; min-height: 80px; display: flex; align-items: center; justify-content: center; }
         
         button { padding: 15px 20px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; transition: 0.3s; width: 100%; margin-bottom: 10px; font-weight: bold; }
         button:disabled { background-color: #ccc; cursor: not-allowed; }
-        button:hover:not(:disabled) { background-color: #0056b3; }
         
         textarea { width: 100%; box-sizing: border-box; font-family: monospace; border-radius: 5px; border: 1px solid #ccc; padding: 10px; background: #fafafa; font-size: 12px; }
         #status { font-weight: bold; margin-bottom: 15px; padding: 10px; background: #e9ecef; border-radius: 6px; border-left: 5px solid #6c757d; }
@@ -33,20 +32,20 @@
 
     <div id="setup" class="tab-content active">
         <h3>1. 接続設定</h3>
-        <p>「デバイスを接続」ボタンを押し、一覧からDisto D5を選択してください。</p>
+        <p>デバイスを接続し、すべての通信ポートを有効化します。</p>
         <button type="button" id="connectBtn">デバイスを接続する</button>
     </div>
 
     <div id="measurement" class="tab-content">
         <h3>2. リアルタイム計測</h3>
         <div class="distance-display" id="distDisplay">--- m</div>
-        <button type="button" id="measureBtn" disabled>計測トリガー (10 x 2回)</button>
-        <p style="font-size: 0.9em; color: #666;">※計測が完了すると、自動的に上の数値が更新されます。</p>
+        <button type="button" id="measureBtn" disabled>計測開始 (10 x 2回)</button>
+        <p style="font-size: 0.85em; color: #666;">受信した生データ: <span id="rawData">なし</span></p>
     </div>
 
     <hr style="margin-top: 30px; border: 0; border-top: 1px solid #eee;">
     <h4 style="margin-bottom: 10px;">システムログ</h4>
-    <textarea id="result" rows="8" readonly placeholder="通信ログが表示されます..."></textarea>
+    <textarea id="result" rows="10" readonly placeholder="ログ履歴..."></textarea>
 
     <script>
         const SERVICE_UUID = '3ab10100-f831-4395-b29d-570977d5bf94';
@@ -58,9 +57,8 @@
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
-            // クリックされたタブをactiveにする
-            if(tabId === 'setup') document.getElementById('tab-setup').classList.add('active');
-            if(tabId === 'measurement') document.getElementById('tab-measurement').classList.add('active');
+            const tabBtnId = 'tab-' + tabId;
+            document.getElementById(tabBtnId).classList.add('active');
         }
 
         const log = (msg) => {
@@ -70,29 +68,30 @@
             document.getElementById('status').innerText = `ステータス: ${msg}`;
         };
 
-        // 距離データ受信時の処理 (Indication)
-        function handleDistChange(event) {
+        // データ受信時の統合処理
+        function handleNotification(event) {
+            const uuid = event.target.uuid;
             const value = event.target.value;
-            // Distoのデータ形式に合わせてデコード（通常はFloat32や文字列）
-            // まずは生データを16進数と文字列の両方でデバッグ表示
-            const decoder = new TextDecoder();
-            const decodedString = decoder.decode(value);
+            const decoded = new TextDecoder().decode(value);
             
-            log(`データ受信: ${decodedString}`);
-            
-            // UIに表示（数値のみ抽出するなどの加工が必要な場合があります）
-            document.getElementById('distDisplay').innerText = decodedString.trim() + " m";
+            log(`通知受信 [${uuid.substring(4, 8)}]: ${decoded}`);
+            document.getElementById('rawData').innerText = decoded;
+
+            // 距離データ用UUIDの場合、画面中央に表示
+            if (uuid === DIST_CHAR_UUID) {
+                document.getElementById('distDisplay').innerText = decoded.trim() + " m";
+            }
         }
 
         document.getElementById('connectBtn').addEventListener('click', async () => {
             try {
-                log('Bluetoothデバイスを探索中...');
+                log('デバイス探索中...');
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ services: [SERVICE_UUID] }]
                 });
                 
                 device.addEventListener('gattserverdisconnected', () => {
-                    log('切断されました');
+                    log('切断されました。再接続してください。');
                     document.getElementById('measureBtn').disabled = true;
                     document.getElementById('connectBtn').disabled = false;
                 });
@@ -101,44 +100,47 @@
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 const characteristics = await service.getCharacteristics();
                 
-                for (const char of characteristics) {
-                    // 1. コマンド書き込み用 (Write)
-                    if (char.properties.write || char.properties.writeWithoutResponse) {
-                        bleCharCmd = char;
-                        log(`コマンド口確保: ${char.uuid.substring(4, 8)}`);
-                    }
+                log(`${characteristics.length}個のポートをスキャン中...`);
 
-                    // 2. 距離データ受信用 (Indication)
-                    if (char.uuid === DIST_CHAR_UUID) {
-                        log(`距離データ口(010d)の待機を開始...`);
-                        await char.startNotifications();
-                        char.addEventListener('characteristicvaluechanged', handleDistChange);
-                    } else if (char.properties.notify || char.properties.indicate) {
-                        // それ以外の通知ポートも切断防止のために有効化だけしておく
+                for (const char of characteristics) {
+                    const props = char.properties;
+                    const shortUUID = char.uuid.substring(4, 8);
+
+                    // 1. 全ての Notification / Indication を片っ端から有効化する (LightBlueの仕様を再現)
+                    if (props.notify || props.indicate) {
                         try {
                             await char.startNotifications();
-                            char.addEventListener('characteristicvaluechanged', () => {});
-                        } catch(e) {}
+                            char.addEventListener('characteristicvaluechanged', handleNotification);
+                            log(`ポ−ト ${shortUUID}: 通知を有効化しました`);
+                        } catch (err) {
+                            log(`ポート ${shortUUID}: 有効化失敗 (${err.message})`);
+                        }
+                    }
+
+                    // 2. 書き込み用ポートの確保
+                    if (props.write || props.writeWithoutResponse) {
+                        bleCharCmd = char;
+                        log(`ポート ${shortUUID}: 書き込み用として確保`);
                     }
                 }
 
-                if (!bleCharCmd) throw new Error('書き込み可能な口が見つかりません');
+                if (!bleCharCmd) throw new Error('書き込み可能なポートが見つかりませんでした。');
                 
                 document.getElementById('measureBtn').disabled = false;
                 document.getElementById('connectBtn').disabled = true;
-                log('すべての準備が完了しました！');
+                log('全ポート設定完了。計測タブへ移動します。');
                 
-                setTimeout(() => openTab('measurement'), 800);
+                setTimeout(() => openTab('measurement'), 1000);
 
             } catch (e) {
-                log('エラー: ' + e.message);
+                log('接続エラー: ' + e.message);
             }
         });
 
         document.getElementById('measureBtn').addEventListener('click', async () => {
             if (!bleCharCmd) return;
             try {
-                log('計測トリガー送信中...');
+                log('計測実行中 (10 x 2回)...');
                 
                 const send = async () => {
                     const data = new TextEncoder().encode("raiseEvent 10\r\n");
@@ -149,10 +151,10 @@
                 await new Promise(r => setTimeout(r, 500));
                 await send();
                 
-                log('送信完了。デバイスの応答を待っています...');
+                log('送信完了。データの到着を待機中...');
 
             } catch (e) {
-                log('送信エラー: ' + e.message);
+                log('送信失敗: ' + e.message);
             }
         });
     </script>
