@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Pro - Persistent Storage</title>
+    <title>Disto Pro - Horizontal Distance</title>
     <style>
         body { font-family: -apple-system, sans-serif; margin: 20px; background-color: #f0f2f5; }
         .tab-container { display: flex; background: #ddd; border-radius: 8px 8px 0 0; }
@@ -11,9 +11,11 @@
         .tab.active { background: #fff; font-weight: bold; border-top: 3px solid #28a745; }
         .tab-content { display: none; background: #fff; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .tab-content.active { display: block; }
+        
         .storage-card { background: #6c757d; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         .distance-card { background: #28a745; color: white; padding: 25px; border-radius: 12px; text-align: center; margin: 20px 0; }
-        .val { font-size: 2.5rem; font-weight: bold; }
+        .val { font-size: 2.2rem; font-weight: bold; }
+        
         button { padding: 16px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; width: 100%; font-weight: bold; margin-top: 10px; }
         button:disabled { background-color: #ccc; }
         textarea { width: 100%; box-sizing: border-box; font-family: monospace; background: #222; color: #0f0; padding: 10px; font-size: 11px; margin-top: 20px; }
@@ -32,8 +34,9 @@
         <button type="button" id="connectBtn">Disto D5 を接続</button>
         <div class="storage-card">
             <h4>記録された参照値 (永続保存)</h4>
-            <p>距離: <span id="savedDist">---</span> m</p>
+            <p>斜距離: <span id="savedDist">---</span> m</p>
             <p>角度: <span id="savedAngle">---</span> °</p>
+            <p><strong>水平距離: <span id="savedHoriz">---</span> m</strong></p>
         </div>
         <button type="button" id="measureSetupBtn" disabled>初期設定として計測・記録</button>
     </div>
@@ -41,7 +44,9 @@
     <div id="measurement" class="tab-content">
         <div class="distance-card">
             <div id="distDisplay" class="val">---.---</div>
-            <div style="font-size:1.2rem">m / 角度: <span id="angleDisplay">--.-</span> °</div>
+            <div style="font-size:1rem">斜距離(m)</div>
+            <div style="margin-top:10px">角度: <span id="angleDisplay">--.-</span> °</div>
+            <div style="font-size:1.2rem; margin-top:5px"><strong>水平距離: <span id="horizDisplay">---.---</span> m</strong></div>
         </div>
         <button type="button" id="measureBtn" disabled>計測 (raiseEvent 10 x 2)</button>
     </div>
@@ -51,13 +56,12 @@
     <script>
         const DIST_SHORT_UUID = '010d';
         let bleCharCmd = null;
-        let isSaving = false; // 保存モードフラグ
+        let isSaving = false;
 
         window.onload = () => {
-            const d = localStorage.getItem('disto_dist');
-            const a = localStorage.getItem('disto_angle');
-            if(d) document.getElementById('savedDist').innerText = d;
-            if(a) document.getElementById('savedAngle').innerText = a;
+            document.getElementById('savedDist').innerText = localStorage.getItem('disto_dist') || '---';
+            document.getElementById('savedAngle').innerText = localStorage.getItem('disto_angle') || '---';
+            document.getElementById('savedHoriz').innerText = localStorage.getItem('disto_horiz') || '---';
         };
 
         function openTab(tabId) {
@@ -79,20 +83,27 @@
             const value = char.value;
             if (char.uuid.toLowerCase().includes(DIST_SHORT_UUID)) {
                 const dist = value.getFloat32(0, true);
-                const angleDeg = value.getFloat32(4, true) * (180 / Math.PI);
+                const angleRad = value.getFloat32(4, true);
+                const angleDeg = angleRad * (180 / Math.PI);
+                const horizDist = dist * Math.cos(angleRad); // 水平距離の算出
 
-                // 常に現在の計測値を更新
+                // 計測タブ表示
                 document.getElementById('distDisplay').innerText = dist.toFixed(4);
                 document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
+                document.getElementById('horizDisplay').innerText = horizDist.toFixed(4);
 
-                // もし「保存モード」ならLocalStorageに書き込む
+                // 保存処理
                 if (isSaving) {
                     localStorage.setItem('disto_dist', dist.toFixed(4));
                     localStorage.setItem('disto_angle', angleDeg.toFixed(2));
+                    localStorage.setItem('disto_horiz', horizDist.toFixed(4));
+                    
                     document.getElementById('savedDist').innerText = dist.toFixed(4);
                     document.getElementById('savedAngle').innerText = angleDeg.toFixed(2);
-                    log(`保存完了: ${dist.toFixed(4)}m`);
-                    isSaving = false; // 保存したらモード終了
+                    document.getElementById('savedHoriz').innerText = horizDist.toFixed(4);
+                    
+                    log(`値を保存: 水平距離 ${horizDist.toFixed(4)}m`);
+                    isSaving = false;
                 }
             }
         }
@@ -121,7 +132,7 @@
 
         const triggerMeasure = async (saveMode) => {
             if (!bleCharCmd) return;
-            isSaving = saveMode; // 次に受信するデータを保存対象にするか設定
+            isSaving = saveMode;
             const send = () => bleCharCmd.writeValueWithResponse(new TextEncoder().encode("raiseEvent 10\r\n"));
             await send();
             await new Promise(r => setTimeout(r, 500));
