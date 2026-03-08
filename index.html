@@ -11,14 +11,11 @@
         .tab.active { background: #fff; font-weight: bold; border-top: 3px solid #28a745; }
         .tab-content { display: none; background: #fff; padding: 25px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .tab-content.active { display: block; }
-        
         .storage-card { background: #6c757d; color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         .distance-card { background: #28a745; color: white; padding: 25px; border-radius: 12px; text-align: center; margin: 20px 0; }
         .val { font-size: 2.5rem; font-weight: bold; }
-        
         button { padding: 16px; font-size: 16px; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; width: 100%; font-weight: bold; margin-top: 10px; }
         button:disabled { background-color: #ccc; }
-        
         textarea { width: 100%; box-sizing: border-box; font-family: monospace; background: #222; color: #0f0; padding: 10px; font-size: 11px; margin-top: 20px; }
     </style>
 </head>
@@ -54,8 +51,8 @@
     <script>
         const DIST_SHORT_UUID = '010d';
         let bleCharCmd = null;
+        let isSaving = false; // 保存モードフラグ
 
-        // ページ読み込み時にLocalStorageから復元
         window.onload = () => {
             const d = localStorage.getItem('disto_dist');
             const a = localStorage.getItem('disto_angle');
@@ -77,14 +74,6 @@
             document.getElementById('status').innerText = msg;
         };
 
-        function saveValue(dist, angle) {
-            localStorage.setItem('disto_dist', dist.toFixed(4));
-            localStorage.setItem('disto_angle', angle.toFixed(2));
-            document.getElementById('savedDist').innerText = dist.toFixed(4);
-            document.getElementById('savedAngle').innerText = angle.toFixed(2);
-            log('値を永続保存しました');
-        }
-
         function handleData(event) {
             const char = event.target;
             const value = char.value;
@@ -92,14 +81,22 @@
                 const dist = value.getFloat32(0, true);
                 const angleDeg = value.getFloat32(4, true) * (180 / Math.PI);
 
+                // 常に現在の計測値を更新
                 document.getElementById('distDisplay').innerText = dist.toFixed(4);
                 document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
-                
-                // 初期設定タブの計測ボタン用ロジック（保存処理は関数呼び出し時のみにする）
+
+                // もし「保存モード」ならLocalStorageに書き込む
+                if (isSaving) {
+                    localStorage.setItem('disto_dist', dist.toFixed(4));
+                    localStorage.setItem('disto_angle', angleDeg.toFixed(2));
+                    document.getElementById('savedDist').innerText = dist.toFixed(4);
+                    document.getElementById('savedAngle').innerText = angleDeg.toFixed(2);
+                    log(`保存完了: ${dist.toFixed(4)}m`);
+                    isSaving = false; // 保存したらモード終了
+                }
             }
         }
 
-        // 接続処理（計測タブへ自動遷移を削除）
         document.getElementById('connectBtn').addEventListener('click', async () => {
             try {
                 const device = await navigator.bluetooth.requestDevice({
@@ -118,28 +115,22 @@
                 }
                 document.getElementById('measureBtn').disabled = false;
                 document.getElementById('measureSetupBtn').disabled = false;
-                log('接続完了。各タブで計測可能です。');
+                log('接続完了。');
             } catch (e) { log('Error: ' + e.message); }
         });
 
-        // 共通計測関数
-        const triggerMeasure = async (save) => {
+        const triggerMeasure = async (saveMode) => {
             if (!bleCharCmd) return;
+            isSaving = saveMode; // 次に受信するデータを保存対象にするか設定
             const send = () => bleCharCmd.writeValueWithResponse(new TextEncoder().encode("raiseEvent 10\r\n"));
             await send();
             await new Promise(r => setTimeout(r, 500));
             await send();
-            log('計測トリガー送信');
-
-            // 1回だけ保存用フラグをチェックして、次の受信時に保存するなどの実装も可能だが
-            // ここでは簡易的に「直近の値」を取得するロジックを統合
+            log(saveMode ? '保存用計測を開始...' : '計測トリガー送信');
         };
 
         document.getElementById('measureBtn').addEventListener('click', () => triggerMeasure(false));
-        document.getElementById('measureSetupBtn').addEventListener('click', async () => {
-            await triggerMeasure(true);
-            log('注意: 実際の値は次に受信した際に反映されます。');
-        });
+        document.getElementById('measureSetupBtn').addEventListener('click', () => triggerMeasure(true));
     </script>
 </body>
 </html>
