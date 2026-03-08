@@ -3,79 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Pro - Dashboard</title>
+    <title>Disto Pro - Landscape Mode</title>
     <style>
-        :root { --primary: #2563eb; --accent: #10b981; --bg: #f8fafc; --text: #1e293b; }
-        body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: 0 auto; }
-        .header { margin-bottom: 20px; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 10px; background-color: #f0f2f5; display: flex; height: 100vh; box-sizing: border-box; }
         
-        .tab-menu { display: flex; gap: 10px; margin-bottom: 20px; }
-        .tab { flex: 1; padding: 12px; background: #e2e8f0; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        .tab.active { background: var(--primary); color: white; }
+        /* 左右2分割レイアウト */
+        .panel { flex: 1; padding: 10px; display: flex; flex-direction: column; overflow-y: auto; }
+        .panel-left { border-right: 2px solid #ccc; }
         
-        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .value-big { font-size: 2.5rem; font-weight: 800; color: var(--primary); }
-        .label { font-size: 0.875rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 10px; }
+        .val { font-size: 2rem; font-weight: bold; }
+        .warning { background: #ffc107; color: #856404; padding: 10px; border-radius: 8px; font-weight: bold; margin-top: 10px; display: none; }
         
-        .btn { width: 100%; padding: 16px; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-measure { background: var(--accent); color: white; margin-top: 10px; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button { padding: 12px; font-size: 14px; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; font-weight: bold; margin-top: 5px; }
+        button:disabled { background-color: #ccc; }
         
-        .warning { background: #fef3c7; color: #92400e; padding: 15px; border-radius: 12px; border-left: 4px solid #d97706; margin: 15px 0; display: none; }
-        .hidden { display: none; }
+        #result { font-family: monospace; font-size: 10px; background: #222; color: #0f0; padding: 5px; height: 60px; overflow-y: auto; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header"><h2>Disto Pro</h2></div>
-        <div class="tab-menu">
-            <button class="tab active" onclick="switchTab('setup')">設定</button>
-            <button class="tab" onclick="switchTab('measure')">計測</button>
-        </div>
 
-        <div id="setup-view" class="view">
-            <button id="connectBtn" class="btn btn-primary">デバイスを接続</button>
-            <div class="card" style="margin-top:20px;">
-                <div class="label">基準値（初期設定）</div>
-                <div style="display:flex; justify-content:space-between; margin-top:10px;">
-                    <div><div class="label">距離</div><span id="savedDist">---</span>m</div>
-                    <div><div class="label">角度</div><span id="savedAngle">---</span>°</div>
-                    <div><div class="label">水平距離</div><span id="savedHoriz">---</span>m</div>
-                </div>
-            </div>
-            <button id="measureSetupBtn" class="btn btn-measure" disabled>基準値を記録</button>
+    <div class="panel panel-left">
+        <button type="button" id="connectBtn">Disto D5 接続</button>
+        <div class="card">
+            <h4>保存された参照値</h4>
+            <p>斜距離: <span id="savedDist">---</span> m</p>
+            <p>角度: <span id="savedAngle">---</span> °</p>
+            <p><strong>水平距離: <span id="savedHoriz">---</span> m</strong></p>
         </div>
+        <button type="button" id="measureSetupBtn" disabled>初期設定として計測</button>
+        <textarea id="result" readonly></textarea>
+    </div>
 
-        <div id="measure-view" class="view hidden">
-            <div class="card">
-                <div class="label">現在の斜距離</div>
-                <div id="distDisplay" class="value-big">---.---</div>
-                <div style="display:flex; justify-content:space-between; margin-top:15px;">
-                    <div><div class="label">角度</div><span id="angleDisplay" style="font-weight:700">---</span>°</div>
-                    <div><div class="label">水平距離</div><span id="horizDisplay" style="font-weight:700">---</span>m</div>
-                </div>
-            </div>
-            <div class="card">
-                <div class="label">基準との差分 (cm)</div>
-                <div id="diffDisplay" class="value-big" style="color:var(--accent)">---</div>
-            </div>
-            <div id="warningMsg" class="warning">⚠️ 治具がズレていませんか？</div>
-            <button id="measureBtn" class="btn btn-primary" disabled>計測開始</button>
+    <div class="panel">
+        <div class="card" style="background: #28a745; color: white;">
+            <div id="distDisplay" class="val">---.---</div>
+            <div style="font-size:0.8rem">斜距離(m) | 角度: <span id="angleDisplay">--.-</span> °</div>
+            <div style="font-size:1rem; margin-top:5px"><strong>水平距離: <span id="horizDisplay">---.---</span> m</strong></div>
+            <div style="font-size:1rem; margin-top:5px">基準との差分: <span id="diffDisplay">---.---</span> cm</div>
+            <div id="warningMsg" class="warning">⚠️ 治具ズレ検知</div>
         </div>
+        <button type="button" id="measureBtn" disabled style="background:#28a745">計測実行</button>
     </div>
 
     <script>
-        // (ロジックは以前の完全コードをそのまま統合してください)
-        function switchTab(view) {
-            document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById(view + '-view').classList.remove('hidden');
-            event.target.classList.add('active');
+        const DIST_SHORT_UUID = '010d';
+        let bleCharCmd = null;
+        let isSaving = false;
+
+        window.onload = () => {
+            document.getElementById('savedDist').innerText = localStorage.getItem('disto_dist') || '---';
+            document.getElementById('savedAngle').innerText = localStorage.getItem('disto_angle') || '---';
+            document.getElementById('savedHoriz').innerText = localStorage.getItem('disto_horiz') || '---';
+        };
+
+        const log = (msg) => {
+            const area = document.getElementById('result');
+            area.value += `${msg}\n`;
+            area.scrollTop = area.scrollHeight;
+        };
+
+        function handleData(event) {
+            const value = event.target.value;
+            if (event.target.uuid.toLowerCase().includes(DIST_SHORT_UUID)) {
+                const dist = value.getFloat32(0, true);
+                const angleDeg = value.getFloat32(4, true) * (180 / Math.PI);
+                const horizDist = dist * Math.cos(value.getFloat32(4, true));
+
+                document.getElementById('distDisplay').innerText = dist.toFixed(4);
+                document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
+                document.getElementById('horizDisplay').innerText = horizDist.toFixed(4);
+
+                const savedH = parseFloat(localStorage.getItem('disto_horiz'));
+                const savedA = parseFloat(localStorage.getItem('disto_angle'));
+
+                if (!isNaN(savedH)) document.getElementById('diffDisplay').innerText = ((horizDist - savedH) * 100).toFixed(2);
+                document.getElementById('warningMsg').style.display = (!isNaN(savedA) && Math.abs(angleDeg - savedA) >= 2.0) ? 'block' : 'none';
+
+                if (isSaving) {
+                    localStorage.setItem('disto_dist', dist.toFixed(4));
+                    localStorage.setItem('disto_angle', angleDeg.toFixed(2));
+                    localStorage.setItem('disto_horiz', horizDist.toFixed(4));
+                    document.getElementById('savedDist').innerText = dist.toFixed(4);
+                    document.getElementById('savedAngle').innerText = angleDeg.toFixed(2);
+                    document.getElementById('savedHoriz').innerText = horizDist.toFixed(4);
+                    isSaving = false;
+                }
+            }
         }
-        
-        // [ここに前述のhandleData、connectBtn、executeMeasure等のロジックを配置]
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                const device = await navigator.bluetooth.requestDevice({ filters: [{ services: ['3ab10100-f831-4395-b29d-570977d5bf94'] }] });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('3ab10100-f831-4395-b29d-570977d5bf94');
+                const chars = await service.getCharacteristics();
+                for (const c of chars) {
+                    if (c.properties.notify || c.properties.indicate) { await c.startNotifications(); c.addEventListener('characteristicvaluechanged', handleData); }
+                    if (c.properties.write || c.properties.writeWithoutResponse) bleCharCmd = c;
+                }
+                document.getElementById('measureBtn').disabled = false;
+                document.getElementById('measureSetupBtn').disabled = false;
+                log('接続完了');
+            } catch (e) { log('Error: ' + e.message); }
+        });
+
+        const executeMeasure = async (saveMode) => {
+            if (!bleCharCmd) return;
+            isSaving = saveMode;
+            const cmd = new TextEncoder().encode("raiseEvent 10\r\n");
+            await bleCharCmd.writeValueWithResponse(cmd);
+            if (!saveMode) { await new Promise(r => setTimeout(r, 500)); await bleCharCmd.writeValueWithResponse(cmd); }
+        };
+
+        document.getElementById('measureBtn').addEventListener('click', () => executeMeasure(false));
+        document.getElementById('measureSetupBtn').addEventListener('click', () => executeMeasure(true));
     </script>
 </body>
 </html>
