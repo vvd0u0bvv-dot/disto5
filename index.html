@@ -3,150 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Disto Pro - Landscape Tab Mode</title>
+    <title>Disto D5 Control Panel</title>
     <style>
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 10px; background-color: #f0f2f5; height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; }
+        body { font-family: sans-serif; margin: 0; padding: 20px; background: #fff; }
+        .tabs { display: flex; border-bottom: 2px solid #ccc; margin-bottom: 20px; }
+        .tab { padding: 15px 30px; cursor: pointer; border: 1px solid #ccc; border-bottom: none; background: #eee; }
+        .tab.active { background: #fff; font-weight: bold; border-top: 2px solid #007bff; }
+        .content { display: none; }
+        .content.active { display: block; }
+
+        .btn-connect { background: #00bfff; color: white; padding: 20px; width: 100%; border: none; font-size: 1.2rem; margin-bottom: 20px; }
+        .btn-measure { background: #9acd32; color: black; padding: 40px; width: 100%; border: none; font-size: 2rem; font-weight: bold; }
         
-        .tab-container { display: flex; background: #ddd; border-radius: 8px 8px 0 0; }
-        .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; background: #eee; border-right: 1px solid #ccc; }
-        .tab.active { background: #fff; font-weight: bold; }
+        .val-display { font-size: 6rem; font-weight: bold; text-align: center; margin: 20px 0; }
+        .warning { background: red; color: white; padding: 20px; text-align: center; font-size: 1.5rem; font-weight: bold; display: none; }
         
-        .tab-content { display: none; padding: 15px; background: white; flex-grow: 1; border-radius: 0 0 8px 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow-y: auto; }
-        .tab-content.active { display: block; }
-        
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        .card { background: #f8f9fa; padding: 15px; border-radius: 10px; border: 1px solid #eee; }
-        
-        button { padding: 12px; font-size: 14px; cursor: pointer; border-radius: 8px; border: none; background-color: #007bff; color: white; width: 100%; font-weight: bold; }
-        button:disabled { background-color: #ccc; }
-        
-        .val { font-size: 1.8rem; font-weight: bold; }
-        .warning { background: #ffc107; color: #856404; padding: 10px; border-radius: 8px; font-weight: bold; margin-top: 10px; display: none; }
-        #result { font-family: monospace; font-size: 9px; background: #222; color: #0f0; padding: 5px; height: 40px; margin-top: 10px; }
+        .info-panel { border: 1px solid #333; padding: 20px; }
+        textarea { width: 100%; height: 100px; margin-top: 20px; font-family: monospace; }
     </style>
 </head>
 <body>
 
-    <div class="tab-container">
-        <div id="tab-setup" class="tab active" onclick="openTab('setup')">初期設定</div>
-        <div id="tab-measurement" class="tab" onclick="openTab('measurement')">計測表示</div>
+    <div class="tabs">
+        <div id="tab-setup" class="tab active" onclick="switchTab('setup')">初期設定</div>
+        <div id="tab-measure" class="tab" onclick="switchTab('measure')">計測</div>
     </div>
 
-    <div id="setup" class="tab-content active">
-        <div class="grid">
-            <div>
-                <button type="button" id="connectBtn">Disto D5 接続</button>
-                <div style="margin-top:15px">
-                    <h4>記録された参照値</h4>
-                    <p>斜距離: <span id="savedDist">---</span> m</p>
-                    <p>角度: <span id="savedAngle">---</span> °</p>
-                    <p><strong>水平距離: <span id="savedHoriz">---</span> m</strong></p>
-                </div>
-            </div>
-            <div>
-                <button type="button" id="measureSetupBtn" disabled>初期設定として計測</button>
-                <textarea id="result" readonly></textarea>
-            </div>
+    <div id="setup" class="content active">
+        <button class="btn-connect" onclick="connect()">レーザー距離計と接続</button>
+        <div class="info-panel">
+            <h3>記録されている値</h3>
+            <p>斜距離: <span id="savedDist">0.0000</span> m</p>
+            <p>角度: <span id="savedAngle">0.00</span> °</p>
+            <p>水平距離: <span id="savedHoriz">0.0000</span> m</p>
         </div>
+        <button class="btn-measure" style="margin-top:20px;" onclick="triggerSetup()">初期値として計測</button>
     </div>
 
-    <div id="measurement" class="tab-content">
-        <div class="grid">
-            <div class="card" style="background: #28a745; color: white;">
-                <div id="distDisplay" class="val">---.---</div>
-                <div>斜距離(m) | 角度: <span id="angleDisplay">--.-</span> °</div>
-                <div style="font-size:1.1rem; margin-top:5px"><strong>水平距離: <span id="horizDisplay">---.---</span> m</strong></div>
-            </div>
-            <div>
-                <div class="card">
-                    <div style="font-size:1.1rem">基準との差分: <span id="diffDisplay" style="font-weight:bold">---</span> cm</div>
-                    <div id="warningMsg" class="warning">⚠️ 治具ズレ検知</div>
-                </div>
-                <button type="button" id="measureBtn" disabled style="background:#28a745; margin-top:10px;">計測実行</button>
-            </div>
-        </div>
+    <div id="measure" class="content">
+        <div id="warning-box" class="warning">⚠ 治具ズレ検知</div>
+        <div class="val-display"><span id="diffDisplay">000</span> cm</div>
+        <button class="btn-measure" onclick="triggerMeasure()">計測</button>
     </div>
+
+    <textarea id="log" readonly></textarea>
 
     <script>
-        const DIST_SHORT_UUID = '010d';
         let bleCharCmd = null;
         let isSaving = false;
 
-        function openTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        function switchTab(id) {
+            document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.getElementById('tab-' + tabId).classList.add('active');
+            document.getElementById(id).classList.add('active');
+            document.getElementById('tab-' + id).classList.add('active');
         }
-
-        const log = (msg) => {
-            const area = document.getElementById('result');
-            area.value += `${msg}\n`;
-            area.scrollTop = area.scrollHeight;
-        };
 
         window.onload = () => {
-            document.getElementById('savedDist').innerText = localStorage.getItem('disto_dist') || '---';
-            document.getElementById('savedAngle').innerText = localStorage.getItem('disto_angle') || '---';
-            document.getElementById('savedHoriz').innerText = localStorage.getItem('disto_horiz') || '---';
+            document.getElementById('savedDist').innerText = localStorage.getItem('d') || '0.0000';
+            document.getElementById('savedAngle').innerText = localStorage.getItem('a') || '0.00';
+            document.getElementById('savedHoriz').innerText = localStorage.getItem('h') || '0.0000';
         };
 
-        function handleData(event) {
-            const value = event.target.value;
-            if (event.target.uuid.toLowerCase().includes(DIST_SHORT_UUID)) {
-                const dist = value.getFloat32(0, true);
-                const angleRad = value.getFloat32(4, true);
-                const angleDeg = angleRad * (180 / Math.PI);
-                const horizDist = dist * Math.cos(angleRad);
+        async function handleData(event) {
+            const val = event.target.value;
+            const dist = val.getFloat32(0, true);
+            const rad = val.getFloat32(4, true);
+            const deg = rad * (180 / Math.PI);
+            const horiz = dist * Math.cos(rad);
 
-                document.getElementById('distDisplay').innerText = dist.toFixed(4);
-                document.getElementById('angleDisplay').innerText = angleDeg.toFixed(2);
-                document.getElementById('horizDisplay').innerText = horizDist.toFixed(4);
-
-                const savedH = parseFloat(localStorage.getItem('disto_horiz'));
-                const savedA = parseFloat(localStorage.getItem('disto_angle'));
-
-                if (!isNaN(savedH)) document.getElementById('diffDisplay').innerText = ((horizDist - savedH) * 100).toFixed(2);
-                document.getElementById('warningMsg').style.display = (!isNaN(savedA) && Math.abs(angleDeg - savedA) >= 2.0) ? 'block' : 'none';
-
-                if (isSaving) {
-                    localStorage.setItem('disto_dist', dist.toFixed(4));
-                    localStorage.setItem('disto_angle', angleDeg.toFixed(2));
-                    localStorage.setItem('disto_horiz', horizDist.toFixed(4));
-                    document.getElementById('savedDist').innerText = dist.toFixed(4);
-                    document.getElementById('savedAngle').innerText = angleDeg.toFixed(2);
-                    document.getElementById('savedHoriz').innerText = horizDist.toFixed(4);
-                    isSaving = false;
-                }
+            if (isSaving) {
+                localStorage.setItem('d', dist.toFixed(4));
+                localStorage.setItem('a', deg.toFixed(2));
+                localStorage.setItem('h', horiz.toFixed(4));
+                document.getElementById('savedDist').innerText = dist.toFixed(4);
+                document.getElementById('savedAngle').innerText = deg.toFixed(2);
+                document.getElementById('savedHoriz').innerText = horiz.toFixed(4);
+                isSaving = false;
             }
+
+            const savedH = parseFloat(localStorage.getItem('h') || 0);
+            const savedA = parseFloat(localStorage.getItem('a') || 0);
+            
+            document.getElementById('diffDisplay').innerText = ((horiz - savedH) * 100).toFixed(0);
+            document.getElementById('warning-box').style.display = (Math.abs(deg - savedA) >= 2) ? 'block' : 'none';
         }
 
-        document.getElementById('connectBtn').addEventListener('click', async () => {
+        async function connect() {
             try {
                 const device = await navigator.bluetooth.requestDevice({ filters: [{ services: ['3ab10100-f831-4395-b29d-570977d5bf94'] }] });
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService('3ab10100-f831-4395-b29d-570977d5bf94');
                 const chars = await service.getCharacteristics();
                 for (const c of chars) {
-                    if (c.properties.notify || c.properties.indicate) { await c.startNotifications(); c.addEventListener('characteristicvaluechanged', handleData); }
-                    if (c.properties.write || c.properties.writeWithoutResponse) bleCharCmd = c;
+                    if (c.properties.notify) { await c.startNotifications(); c.addEventListener('characteristicvaluechanged', handleData); }
+                    if (c.properties.write) bleCharCmd = c;
                 }
-                document.getElementById('measureBtn').disabled = false;
-                document.getElementById('measureSetupBtn').disabled = false;
-                log('接続完了');
-            } catch (e) { log('Error: ' + e.message); }
-        });
+                document.getElementById('log').value = "接続成功";
+            } catch (e) { alert(e); }
+        }
 
-        const executeMeasure = async (saveMode) => {
-            if (!bleCharCmd) return;
-            isSaving = saveMode;
-            const cmd = new TextEncoder().encode("raiseEvent 10\r\n");
-            await bleCharCmd.writeValueWithResponse(cmd);
-            if (!saveMode) { await new Promise(r => setTimeout(r, 500)); await bleCharCmd.writeValueWithResponse(cmd); }
-        };
-
-        document.getElementById('measureBtn').addEventListener('click', () => executeMeasure(false));
-        document.getElementById('measureSetupBtn').addEventListener('click', () => executeMeasure(true));
+        async function triggerSetup() { isSaving = true; await bleCharCmd.writeValue(new TextEncoder().encode("raiseEvent 10\r\n")); }
+        async function triggerMeasure() { await bleCharCmd.writeValue(new TextEncoder().encode("raiseEvent 10\r\n")); await new Promise(r=>setTimeout(r,500)); await bleCharCmd.writeValue(new TextEncoder().encode("raiseEvent 10\r\n")); }
     </script>
 </body>
 </html>
